@@ -1,0 +1,11 @@
+# Python venv
+.venv/
+venv/
+env/
+
+# PyCache
+__pycache__/
+*.pyc
+
+# Model artifacts (optional)
+*.pt

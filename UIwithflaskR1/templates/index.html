@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Inbox | ProjectConnect{% endblock %}
+
+{% block content %}
+<div class="sidebar">
+  <div class="sidebar-section">
+    <h3 class="sidebar-heading">Inbox</h3>
+    <ul class="sidebar-menu">
+      <li class="active"><span>Inbox</span><span class="badge">1</span></li>
+      <li><span>Sent</span><span class="badge">1</span></li>
+      <li><span>Draft</span><span class="badge">0</span></li>
+      <li><span>Outbox</span><span class="badge">0</span></li>
+    </ul>
+  </div>
+
+  <div class="sidebar-section">
+    <h4 class="sidebar-subheading">All Categories</h4>
+    <ul class="sidebar-menu small">
+      <li class="active"><span>Email</span><span class="badge">1</span></li>
+      <li><span>Advice</span><span class="badge">1</span></li>
+      <li><span>Document Transmittal</span><span class="badge">0</span></li>
+      <li><span>Request for Approval</span><span class="badge">0</span></li>
+      <li><span>Request for Information</span><span class="badge">0</span></li>
+      <li><span>Shop Drawing Review</span><span class="badge">0</span></li>
+      <li><span>Workflow Transmittal</span><span class="badge">0</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <button class="send-btn" type="button">
+        <span class="send-icon">✈️</span>
+        <span>Send</span>
+        <span class="dropdown-arrow">▼</span>
+      </button>
+    </div>
+
+    <div class="toolbar-right">
+      <input class="search-input" placeholder="Search by Email Subject" />
+      <button class="toolbar-button" type="button">Filter</button>
+      <button class="toolbar-button" type="button">Clear filters</button>
+      <button class="toolbar-button" type="button">Reports</button>
+    </div>
+  </div>
+
+  <div class="email-layout">
+
+    <!-- EMAIL PANEL -->
+    <div class="email-panel">
+      <div class="email-header-strip">
+        <span>&nbsp;</span><span>&nbsp;</span>
+      </div>
+
+      <form class="email-form" method="POST" action="{{ url_for('home') }}">
+
+        <div class="field-row">
+          <label>To</label>
+          <input type="text" name="to" value="{{ email.to }}" />
+        </div>
+
+        <div class="field-row">
+          <label>Cc</label>
+          <input type="text" name="cc" placeholder="Add Cc" />
+        </div>
+
+        <div class="field-row">
+          <label>Bcc</label>
+          <input type="text" name="bcc" placeholder="Add Bcc" />
+        </div>
+
+        <div class="field-row">
+          <label>Subject</label>
+          <input type="text" name="subject" value="{{ email.subject }}" />
+        </div>
+
+        <div class="field-row column">
+          <label>Description</label>
+          <textarea
+            id="description-area"
+            name="description"
+            rows="10"
+            placeholder="Write your message here...\n(Press CTRL + ENTER to create a new incident)"
+          >{{ email.description }}</textarea>
+        </div>
+
+        <div class="field-row">
+          <label>Attachments</label>
+          <div class="attachment-box">Drag &amp; drop files here …</div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="primary">Dispute Prediction</button>
+          <button type="button" id="discard-btn">Discard</button>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- ANALYSIS PANEL ALWAYS VISIBLE -->
+    <aside class="analysis-panel">
+      <div class="analysis-card">
+        <h3 class="report-title">📑 Dispute Prediction Report</h3>
+
+        {% if analysis and analysis.overall_score is not none %}
+
+        <!-- OVERALL INDEX -->
+        <button class="analysis-btn unified-btn">Overall Dispute Index</button>
+
+        {% set score_value = analysis.overall_score if analysis.overall_score is not none else 0 %}
+        {% set angle_score = score_value %}
+        {% if angle_score < 1 %}{% set angle_score = 1 %}{% endif %}
+        {% if angle_score > 5 %}{% set angle_score = 5 %}{% endif %}
+        {% set adjusted_score = angle_score - 1 %}
+        {% set needle_angle = -90 + (adjusted_score * 36) + 18 %}
+
+        <div class="unified-box compact-box">
+          <div class="gauge-wrapper">
+            <svg class="gauge-svg" viewBox="0 0 200 120">
+              <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="#e0e0e0" stroke-width="18" />
+              <path d="M20,100 A80,80 0 0,1 35.3,53.0" fill="none" stroke="#4CAF50" stroke-width="18" />
+              <path d="M35.3,53.0 A80,80 0 0,1 75.3,23.9" fill="none" stroke="#8BC34A" stroke-width="18" />
+              <path d="M75.3,23.9 A80,80 0 0,1 124.7,23.9" fill="none" stroke="#FFEB3B" stroke-width="18" />
+              <path d="M124.7,23.9 A80,80 0 0,1 164.7,53.0" fill="none" stroke="#FF9800" stroke-width="18" />
+              <path d="M164.7,53.0 A80,80 0 0,1 180,100" fill="none" stroke="#F44336" stroke-width="18" />
+
+              <line x1="100" y1="100" x2="100" y2="30"
+                    stroke="#555" stroke-width="4"
+                    transform="rotate({{ needle_angle }} 100 100)" />
+              <circle cx="100" cy="100" r="5" fill="#555" />
+            </svg>
+
+            <div class="gauge-value">{{ analysis.overall_score }}</div>
+          </div>
+
+          <div class="gauge-level">
+            <span class="gauge-dot"
+              style="
+                background-color:
+                  {% if score_value < 2 %}#4CAF50
+                  {% elif score_value < 3 %}#8BC34A
+                  {% elif score_value < 4 %}#FFEB3B
+                  {% elif score_value < 5 %}#FF9800
+                  {% else %}#F44336{% endif %};
+              "></span>
+            {{ analysis.overall_level }} – {{ analysis.overall_description }}
+          </div>
+
+        </div>
+
+        <!-- DETAILS -->
+        <button class="analysis-btn unified-btn">Detailed Dispute Prediction</button>
+
+        <div class="analysis-email unified-box compact-email">
+
+          {% for incident in analysis.incidents %}
+          <div class="incident-row">
+            <div class="incident-label">
+              <strong>Incident {{ loop.index }}</strong>
+            </div>
+
+            <div class="incident-header-row">
+              <div>Key Entity Extraction</div>
+              <div>Dispute Index</div>
+              <div>Dispute Type</div>
+            </div>
+
+            <div class="incident-grid">
+              <div class="incident-text-col compact-text">
+                {{ incident.highlighted | safe }}
+              </div>
+
+              <div class="incident-index-col">
+                <strong>{{ incident.index_score }}</strong>
+              </div>
+
+              <div class="incident-class-col">
+                <strong>
+                  {% if incident.index_score <= 1 %}
+                    No dispute type detected
+                  {% else %}
+                    {{ incident.classification }}
+                  {% endif %}
+                </strong>
+              </div>
+            </div>
+
+            {% if not loop.last %}
+            <hr class="incident-divider">
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- LEGEND -->
+        <div class="entity-legend compact-legend">
+          <strong>Legend:</strong>
+          <ul>
+            <li><span class="legend-swatch ent-color-1"></span> Clause / Reference No</li>
+            <li><span class="legend-swatch ent-color-2"></span> Amount Involved</li>
+            <li><span class="legend-swatch ent-color-3"></span> Trigger Phrase</li>
+            <li><span class="legend-swatch ent-color-4"></span> Party Involved</li>
+            <li><span class="legend-swatch ent-color-5"></span> Time Frame</li>
+          </ul>
+        </div>
+
+        {% else %}
+
+        <!-- BLANK PANEL -->
+        <div class="unified-box compact-box"
+             style="height:300px;display:flex;align-items:center;justify-content:center;color:#777;">
+          <p>No analysis yet. Enter a description and click <strong>Dispute Prediction</strong>.</p>
+        </div>
+
+        {% endif %}
+
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- JS: CTRL+ENTER -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const descBox = document.getElementById("description-area");
+
+    descBox.addEventListener("keydown", function (e) {
+        if (e.ctrlKey && e.key === "Enter") {
+            e.preventDefault();
+            const marker = "\n===NEW INCIDENT===\n";
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            this.value = this.value.substring(0, start) + marker + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + marker.length;
+        }
+    });
+});
+</script>
+
+<!-- DISCARD -->
+<script>
+document.getElementById("discard-btn").addEventListener("click", () => {
+  document.querySelector("textarea[name='description']").value = "";
+  window.location.href = "/";
+});
+</script>
+
+<!-- ORIGINAL CSS -->
+<style>
+.incident-header-row {
+  display: grid;
+  grid-template-columns: 70% 15% 15%;
+  background: #d9e2ec;
+  padding: 6px 8px;
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  color: #1E3A5F;
+}
+.compact-email { padding:10px 12px!important; margin-top:8px!important; }
+.compact-text { margin:0!important; padding:0!important; line-height:1.28; }
+.compact-text br:first-child { display:none!important; }
+.incident-label { margin:3px 0 4px 0!important; color:#1E3A5F; }
+.incident-grid { display:grid; grid-template-columns:70% 15% 15%; gap:4px; padding:4px 0!important; }
+hr.incident-divider { border:0; border-top:1px dashed #bbb; margin:8px 0!important; }
+.compact-legend ul { margin-top:4px!important; }
+.compact-legend li { margin-bottom:2px!important; }
+.send-btn {
+  background-color:#8B1C3E;
+  color:white;
+  border:none;
+  border-radius:4px;
+  display:flex;
+  align-items:center;
+  padding:8px 14px;
+  font-weight:600;
+  font-size:15px;
+  cursor:pointer;
+  gap:6px;
+}
+.send-btn:hover { background-color:#a22248; }
+.send-icon { font-size:16px; }
+.dropdown-arrow { font-size:10px; margin-left:5px; }
+</style>
+
+{% endblock %}

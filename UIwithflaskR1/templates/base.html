@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{% block title %}ProjectConnect{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Our CSS file -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="icon-button">&#9776;</button>
+      <span class="app-title">ProjectConnect</span>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-circle">?</button>
+      <button class="icon-circle">&#9881;</button>
+      <button class="icon-circle">&#128276;</button>
+    </div>
+  </header>
+
+  <div class="app-container">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>
