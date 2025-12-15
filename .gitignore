@@ -9,3 +9,10 @@ __pycache__/
 
 # Model artifacts (optional)
 *.pt
+
+
+DisputeClassificationModel/dispute_classification_DistilBERT/
+DisputeIndex/DisputeIndex_DistilBERT_Base/
+NERModel/ner_legalbert_bilstm_crf_model/
+*.pt
+*.safetensors
