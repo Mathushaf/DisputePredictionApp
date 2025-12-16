@@ -1,26 +1,16 @@
-import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # ======================================================
-# ✅ Resolve absolute path to this file’s directory
-#    (Development1/DisputeClassificationModel/)
+# ✅ Load model from HuggingFace (DPM2)
 # ======================================================
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_REPO = "mathushaf1989/DPM2"
 
-# ======================================================
-# ✅ Absolute path to the classification model folder
-#    Model folder name: dispute_classification_DistilBERT
-# ======================================================
-MODEL_DIR = os.path.join(CURRENT_DIR, "dispute_classification_DistilBERT")
+print(f"📁 Loading Dispute Classification model from HuggingFace repo: {MODEL_REPO}")
 
-print(f"📁 Loading Dispute Classification model from: {MODEL_DIR}")
-
-# ======================================================
-# ✅ Load tokenizer + model
-# ======================================================
-tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
+# Load tokenizer + model
+tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO)
 
 # ======================================================
 # ✅ Device setup
@@ -34,8 +24,7 @@ model.eval()
 # ======================================================
 def predict_dispute(text: str):
     """
-    Predict whether the text is a dispute category
-    using the classification model.
+    Predict the dispute classification label using the model.
     """
 
     # Tokenize
@@ -53,7 +42,7 @@ def predict_dispute(text: str):
         outputs = model(**inputs)
         probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
 
-    pred_idx = torch.argmax(probs, dim=1).item()
+    pred_idx = int(torch.argmax(probs, dim=-1).cpu().item())
 
-    # Return human-readable label from config
+    # Map index to human-readable label
     return model.config.id2label[pred_idx]

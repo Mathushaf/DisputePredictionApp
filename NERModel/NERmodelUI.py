@@ -1,23 +1,21 @@
 # ======================================================
 # 🖥️ NER UI — LegalBERT + BiLSTM + CRF (TorchCRF version)
+#     Updated to load model from HuggingFace: DPM3
 # ======================================================
 
-import os
 import re
 import json
 import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoModel
 from torchcrf import CRF
+from huggingface_hub import hf_hub_download   # ✅ REQUIRED FOR HF MODELS
 
 # ======================================================
-# Load model directory
+# Load model from HuggingFace Hub
 # ======================================================
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))   # NERModel/
-MODEL_DIR = os.path.join(CURRENT_DIR, "ner_legalbert_bilstm_crf_model")
-WEIGHTS_PATH = os.path.join(MODEL_DIR, "model.pt")
-
-print(f"📁 Loading NER model from: {MODEL_DIR}")
+HF_REPO = "mathushaf1989/DPM3"
+print(f"📁 Loading NER model from HuggingFace repo: {HF_REPO}")
 
 # ------------ Labels ------------
 ENTITY_TYPES = [
@@ -40,10 +38,10 @@ id2label = {v: k for k, v in label2id.items()}
 # Model Definition
 # ======================================================
 class BERT_BiLSTM_CRF(nn.Module):
-    def __init__(self, model_name_or_dir, num_labels, lstm_hidden=512, dropout_rate=0.2):
+    def __init__(self, bert_dir, num_labels, lstm_hidden=512, dropout_rate=0.2):
         super().__init__()
 
-        self.bert = AutoModel.from_pretrained(model_name_or_dir)
+        self.bert = AutoModel.from_pretrained(bert_dir)
 
         self.lstm = nn.LSTM(
             input_size=self.bert.config.hidden_size,
@@ -56,7 +54,6 @@ class BERT_BiLSTM_CRF(nn.Module):
         self.dropout = nn.Dropout(dropout_rate)
         self.classifier = nn.Linear(lstm_hidden, num_labels)
 
-        # TorchCRF DOES NOT support batch_first argument
         self.crf = CRF(num_labels, batch_first=True)
 
     def forward(self, input_ids, attention_mask, labels=None):
@@ -72,28 +69,31 @@ class BERT_BiLSTM_CRF(nn.Module):
             loss = -self.crf(emissions, labels, mask=mask)
             return loss
         else:
-            # TorchCRF uses viterbi_decode instead of decode()
             return self.crf.decode(emissions, mask=mask)
 
-
 # ======================================================
-# Load tokenizer & model
+# Load tokenizer
 # ======================================================
-if not os.path.exists(WEIGHTS_PATH):
-    raise FileNotFoundError(f"❌ Model weights missing: {WEIGHTS_PATH}")
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR, use_fast=True)
+tokenizer = AutoTokenizer.from_pretrained(HF_REPO, use_fast=True)
+
+# ======================================================
+# Load model + weights from HF repo
+# ======================================================
+print("⬇️ Downloading model.pt...")
+model_pt_path = hf_hub_download(HF_REPO, "model.pt")  # ✅ Correct HF download
 
 model = BERT_BiLSTM_CRF(
-    MODEL_DIR,
+    HF_REPO,
     num_labels=len(label2id),
     lstm_hidden=512,
     dropout_rate=0.2
 )
 
-state_dict = torch.load(WEIGHTS_PATH, map_location=device)
+print(f"📦 Loading weights from: {model_pt_path}")
+state_dict = torch.load(model_pt_path, map_location=device)
+
 model.load_state_dict(state_dict, strict=True)
 model.to(device)
 model.eval()
@@ -101,7 +101,7 @@ model.eval()
 print(f"✅ NER model loaded on {device}")
 
 # ======================================================
-# Text cleaning
+# Text Cleaning
 # ======================================================
 def clean_text_for_ner(text: str) -> str:
     t = re.sub(r'<[^>]+>', ' ', text)

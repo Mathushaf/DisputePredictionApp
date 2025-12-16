@@ -1,27 +1,16 @@
-import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 # ======================================================
-# ✅ Resolve absolute path to this file’s directory
-#    (Development1/DisputeIndex/)
+# ✅ Load model directly from HuggingFace (no local files)
 # ======================================================
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_REPO = "mathushaf1989/DPM1"
 
-# ======================================================
-# ✅ Absolute path to the model folder
-#    Your model folder is inside the same directory:
-#    Development1/DisputeIndex/DisputeIndex_DistilBERT_Base
-# ======================================================
-MODEL_DIR = os.path.join(CURRENT_DIR, "DisputeIndex_DistilBERT_Base")
+print(f"📁 Loading Dispute Index model from HuggingFace repo: {MODEL_REPO}")
 
-print(f"📁 Loading Dispute Index model from: {MODEL_DIR}")
-
-# ======================================================
-# ✅ Load tokenizer + model
-# ======================================================
-tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
+# Load tokenizer + model
+tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO)
 
 # ======================================================
 # ✅ Device setup
