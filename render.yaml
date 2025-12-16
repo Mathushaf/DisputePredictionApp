@@ -2,7 +2,6 @@ services:
   - type: web
     name: DisputePredictionApp
     env: python
+    runtime: python-3.10
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn app:app"
-    envVars:
-      PYTHON_VERSION: 3.10.14
