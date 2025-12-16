@@ -1,6 +1,6 @@
 # ======================================================
 # 🖥️ NER UI — LegalBERT + BiLSTM + CRF (TorchCRF version)
-#     Updated to load model from HuggingFace: DPM3
+#     Updated for Render using LAZY LOADING
 # ======================================================
 
 import re
@@ -9,13 +9,20 @@ import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, AutoModel
 from torchcrf import CRF
-from huggingface_hub import hf_hub_download   # ✅ REQUIRED FOR HF MODELS
+from huggingface_hub import hf_hub_download   # REQUIRED
 
 # ======================================================
-# Load model from HuggingFace Hub
+# HuggingFace Repo
 # ======================================================
 HF_REPO = "mathushaf1989/DPM3"
-print(f"📁 Loading NER model from HuggingFace repo: {HF_REPO}")
+print(f"📁 NER model available: {HF_REPO} (lazy loading enabled)")
+
+# ======================================================
+# Global vars for lazy loading
+# ======================================================
+tokenizer = None
+model = None
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ------------ Labels ------------
 ENTITY_TYPES = [
@@ -33,6 +40,7 @@ for ent in ENTITY_TYPES:
     label2id[f"I-{ent}"] = i; i += 1
 
 id2label = {v: k for k, v in label2id.items()}
+
 
 # ======================================================
 # Model Definition
@@ -53,55 +61,57 @@ class BERT_BiLSTM_CRF(nn.Module):
 
         self.dropout = nn.Dropout(dropout_rate)
         self.classifier = nn.Linear(lstm_hidden, num_labels)
-
         self.crf = CRF(num_labels, batch_first=True)
 
     def forward(self, input_ids, attention_mask, labels=None):
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         lstm_out, _ = self.lstm(outputs.last_hidden_state)
         emissions = self.classifier(self.dropout(lstm_out))
-
         mask = attention_mask.bool()
 
         if labels is not None:
             labels = labels.clone()
             labels[labels < 0] = 0
-            loss = -self.crf(emissions, labels, mask=mask)
-            return loss
-        else:
-            return self.crf.decode(emissions, mask=mask)
+            return -self.crf(emissions, labels, mask=mask)
+
+        return self.crf.decode(emissions, mask=mask)
+
 
 # ======================================================
-# Load tokenizer
+# Lazy Loader
 # ======================================================
-device = "cuda" if torch.cuda.is_available() else "cpu"
+def load_model_once():
+    global tokenizer, model
 
-tokenizer = AutoTokenizer.from_pretrained(HF_REPO, use_fast=True)
+    if model is not None:
+        return
+
+    print("⏳ Lazy loading tokenizer + model...")
+
+    tokenizer = AutoTokenizer.from_pretrained(HF_REPO, use_fast=True)
+
+    model = BERT_BiLSTM_CRF(
+        HF_REPO,
+        num_labels=len(label2id),
+        lstm_hidden=512,
+        dropout_rate=0.2
+    )
+
+    print("⬇️ Downloading model.pt...")
+    model_path = hf_hub_download(HF_REPO, "model.pt")
+
+    print(f"📦 Loading weights from: {model_path}")
+    state_dict = torch.load(model_path, map_location=device)
+    model.load_state_dict(state_dict, strict=True)
+
+    model.to(device)
+    model.eval()
+
+    print(f"✅ NER model ready on {device}")
+
 
 # ======================================================
-# Load model + weights from HF repo
-# ======================================================
-print("⬇️ Downloading model.pt...")
-model_pt_path = hf_hub_download(HF_REPO, "model.pt")  # ✅ Correct HF download
-
-model = BERT_BiLSTM_CRF(
-    HF_REPO,
-    num_labels=len(label2id),
-    lstm_hidden=512,
-    dropout_rate=0.2
-)
-
-print(f"📦 Loading weights from: {model_pt_path}")
-state_dict = torch.load(model_pt_path, map_location=device)
-
-model.load_state_dict(state_dict, strict=True)
-model.to(device)
-model.eval()
-
-print(f"✅ NER model loaded on {device}")
-
-# ======================================================
-# Text Cleaning
+# Cleaning + Helper Functions
 # ======================================================
 def clean_text_for_ner(text: str) -> str:
     t = re.sub(r'<[^>]+>', ' ', text)
@@ -110,15 +120,15 @@ def clean_text_for_ner(text: str) -> str:
     t = re.sub(r'\s+([.,;:!?])', r'\1', t)
     return t.strip()
 
-# ======================================================
-# Entity merging helpers
-# ======================================================
+
 def merge_adjacent_same_type(entities, text):
     merged, cur = [], None
     for e in sorted(entities, key=lambda x: (x["start"], x["end"])):
+
         if cur is None:
             cur = e
             continue
+
         gap = text[cur["end"]:e["start"]]
         if e["type"] == cur["type"] and (not gap or gap.isspace()):
             cur["end"] = e["end"]
@@ -126,9 +136,12 @@ def merge_adjacent_same_type(entities, text):
         else:
             merged.append(cur)
             cur = e
+
     if cur:
         merged.append(cur)
+
     return merged
+
 
 # ======================================================
 # Time frame expansion
@@ -164,8 +177,9 @@ def expand_time_frames(text, entities):
 
     return out
 
+
 # ======================================================
-# Rule-based Amount detection
+# Amount rule
 # ======================================================
 AMOUNT_RX = re.compile(r'(?:Rs\.?|USD|AUD|\$)\s?[\d,]+(?:\.\d+)?', re.IGNORECASE)
 
@@ -182,8 +196,9 @@ def add_amount_rule_fallback(text, entities):
             })
     return entities
 
+
 # ======================================================
-# Clause Reference rules
+# Clause reference rules
 # ======================================================
 GENERIC_CODE_RX = re.compile(
     r'\b(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{3,15}\b'
@@ -206,6 +221,7 @@ def add_clause_refs(text, entities):
             })
     return entities
 
+
 STRICT_KEEP = [
     re.compile(r'\bClause\s+\d+(?:\.\d+)*\b', re.IGNORECASE),
     GENERIC_CODE_RX,
@@ -222,8 +238,9 @@ def enforce_clause_validity(text, entities):
         if not (e["type"] == "Clause / Reference No" and not is_valid_clause_ref(e["text"]))
     ]
 
+
 # ======================================================
-# Add "court" as Trigger Phrase
+# Trigger phrase (court)
 # ======================================================
 COURT_RX = re.compile(r"\bcourts?\b", re.IGNORECASE)
 
@@ -237,8 +254,9 @@ def add_court_highlight(text, entities):
         })
     return entities
 
+
 # ======================================================
-# Date extraction → Time Frame
+# Date → Time Frame
 # ======================================================
 MONTHS = r'(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t\.?|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)'
 
@@ -260,6 +278,7 @@ def add_dates_as_timeframes(text, entities):
             })
     return entities
 
+
 # ======================================================
 # Trigger cleanup
 # ======================================================
@@ -269,8 +288,9 @@ def drop_single_word_triggers(entities):
         if not (e["type"] == "Trigger Phrase" and len(re.findall(r'\w+', e["text"])) <= 1)
     ]
 
+
 # ======================================================
-# Dedupe helper
+# Dedupe
 # ======================================================
 def dedupe(entities):
     out, seen = [], set()
@@ -281,10 +301,13 @@ def dedupe(entities):
             out.append(e)
     return out
 
+
 # ======================================================
 # 🔍 Core Prediction Function
 # ======================================================
 def predict_analysis(text: str):
+
+    load_model_once()
 
     cleaned = clean_text_for_ner(text)
 
@@ -305,18 +328,17 @@ def predict_analysis(text: str):
     with torch.no_grad():
         pred_ids = model(input_ids, attention_mask)[0]
 
-    # Token → word labels
     word_to_labels = {}
-    for tok_idx, (wid, lab_id) in enumerate(zip(word_ids, pred_ids)):
+    for wid, lid in zip(word_ids, pred_ids):
         if wid is None:
             continue
-        word_to_labels.setdefault(wid, []).append(lab_id)
+        word_to_labels.setdefault(wid, []).append(lid)
 
     word_spans = []
     for wid, lab_ids in sorted(word_to_labels.items()):
-        tok_indices = [i for i, w in enumerate(word_ids) if w == wid]
-        start = offsets[tok_indices[0]][0]
-        end   = offsets[tok_indices[-1]][1]
+        tok_idxs = [i for i, w in enumerate(word_ids) if w == wid]
+        start = offsets[tok_idxs[0]][0]
+        end   = offsets[tok_idxs[-1]][1]
 
         labels = [id2label.get(lid, "O") for lid in lab_ids]
         non_o = [l for l in labels if l != "O"]
@@ -330,7 +352,6 @@ def predict_analysis(text: str):
 
         word_spans.append({"type": etype, "start": start, "end": end})
 
-    # Merge continuous spans
     entities = []
     cur = None
     for ws in word_spans:
@@ -356,7 +377,7 @@ def predict_analysis(text: str):
         cur["text"] = cleaned[cur["start"]:cur["end"]]
         entities.append(cur)
 
-    # Post-processing
+    # === Post-processing ===
     entities = expand_time_frames(cleaned, entities)
     entities = merge_adjacent_same_type(entities, cleaned)
     entities = add_amount_rule_fallback(cleaned, entities)
@@ -366,6 +387,7 @@ def predict_analysis(text: str):
     entities = drop_single_word_triggers(entities)
     entities = enforce_clause_validity(cleaned, entities)
 
+    # clean text
     for e in entities:
         e["text"] = cleaned[e["start"]:e["end"]].strip()
 
@@ -373,6 +395,7 @@ def predict_analysis(text: str):
     entities = dedupe(entities)
 
     return {"entities": entities}
+
 
 # ======================================================
 # Manual Test
